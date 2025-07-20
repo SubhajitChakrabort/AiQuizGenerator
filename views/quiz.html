@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KBC Quiz Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-r from-purple-900 to-blue-900 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-yellow-400 mb-2">Kaun Banega Crorepati</h1>
+      
+      <!-- Navigation Links -->
+      <div class="flex justify-center gap-4 mb-4">
+        <a href="/dashboard" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-bold transition-all">
+          🏠 Dashboard
+        </a>
+        <a href="/cashboard" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-bold transition-all">
+          💰 Cash Dashboard
+        </a>
+        <a href="/leaderboard" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all">
+          🏆 Leaderboard
+        </a>
+      </div>
+      
+      <div id="timer" class="text-2xl text-white mb-4">Time: <span id="timeLeft">600</span>s</div>
+      
+      <!-- Cash Prize Display -->
+      <div class="bg-white/20 backdrop-blur-md rounded-lg p-4 mb-4">
+        <div class="text-yellow-400 text-xl font-bold mb-2">💰 Current Earnings: ₹<span id="currentCash">0</span></div>
+        <div class="text-white text-sm">Total Possible: ₹2,53,000</div>
+        <div class="text-green-400 text-sm mt-1">Questions Answered: <span id="questionsAnswered">0</span>/10</div>
+      </div>
+    </div>
+
+    <!-- Prize Structure -->
+    <div class="max-w-md mx-auto mb-6">
+      <div class="bg-white/10 backdrop-blur-md rounded-lg p-4">
+        <h3 class="text-yellow-400 font-bold mb-2 text-center">Prize Structure</h3>
+        <div id="prizeStructure" class="grid grid-cols-2 gap-2 text-sm text-white">
+          <div class="prize-item p-2 rounded" data-question="1">Q1: ₹2,000</div>
+          <div class="prize-item p-2 rounded" data-question="2">Q2: ₹5,000</div>
+          <div class="prize-item p-2 rounded" data-question="3">Q3: ₹8,000</div>
+          <div class="prize-item p-2 rounded" data-question="4">Q4: ₹10,000</div>
+          <div class="prize-item p-2 rounded" data-question="5">Q5: ₹15,000</div>
+          <div class="prize-item p-2 rounded" data-question="6">Q6: ₹18,000</div>
+          <div class="prize-item p-2 rounded" data-question="7">Q7: ₹25,000</div>
+          <div class="prize-item p-2 rounded" data-question="8">Q8: ₹30,000</div>
+          <div class="prize-item p-2 rounded" data-question="9">Q9: ₹40,000</div>
+          <div class="prize-item p-2 rounded" data-question="10">Q10: ₹50,000</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quiz Container -->
+    <div id="quiz-container" class="max-w-3xl mx-auto">
+      <!-- Questions will be inserted here -->
+    </div>
+
+    <!-- Submit Button -->
+    <div class="text-center mt-8">
+      <button id="submitQuiz" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-8 rounded-full text-xl hidden">
+        Submit Quiz
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let currentQuestions = [];
+    let currentQuestionIndex = 0;
+    let userAnswers = [];
+    let currentCash = 0;
+    let questionsAnswered = 0;
+    let timer;
+    const prizeStructure = [2000, 5000, 8000, 10000, 15000, 18000, 25000, 30000, 40000, 50000];
+
+    async function fetchQuiz() {
+      try {
+        const response = await fetch('/api/quiz/generate');
+        const data = await response.json();
+
+        console.log('Fetched Quiz:', data);
+
+        if (data.status && Array.isArray(data.questions) && data.questions.length > 0) {
+          currentQuestions = data.questions;
+          startQuiz();
+        } else {
+          alert("❌ No quiz questions available. Please upload a valid PDF.");
+        }
+      } catch (error) {
+        console.error('Fetch Quiz Error:', error);
+        alert('❌ Failed to load quiz. Please try again.');
+      }
+    }
+
+    function startQuiz() {
+      currentQuestionIndex = 0;
+      userAnswers = [];
+      currentCash = 0;
+      questionsAnswered = 0;
+      updateCashDisplay();
+      updateQuestionsAnswered();
+      showQuestion(currentQuestionIndex);
+      startTimer();
+      document.getElementById('submitQuiz').classList.remove('hidden');
+    }
+
+    function showQuestion(index) {
+      const question = currentQuestions[index];
+      const quizContainer = document.getElementById('quiz-container');
+
+      // Highlight current question in prize structure
+      highlightCurrentPrize(question.questionNumber);
+
+      const template = `
+        <div class="bg-white/10 backdrop-blur-md rounded-lg p-6 mb-6">
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-yellow-400 mb-2">Question ${question.questionNumber}</h2>
+            <p class="text-xl text-white mb-2">${question.question}</p>
+            <p class="text-yellow-300 font-bold">Prize for this question: ₹${question.prize.toLocaleString()}</p>
+          </div>
+
+          <!-- Lifelines -->
+          <div class="flex gap-4 mb-6 flex-wrap">
+            ${Object.entries(question.lifelines).map(([name, available]) => `
+              <button 
+                onclick="useLifeline('${name}', ${question.id})"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded ${available ? '' : 'opacity-50 cursor-not-allowed'}"
+                ${available ? '' : 'disabled'}
+              >
+                ${name.replace(/([A-Z])/g, ' $1').trim()}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- Options -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${Object.entries(question.options).map(([letter, text]) => `
+              <button 
+                onclick="selectOption(${question.id}, '${letter}')"
+                class="option-btn bg-purple-800 hover:bg-purple-700 text-white p-4 rounded-lg text-left transition-all duration-300"
+                data-question="${question.id}"
+                data-option="${letter}"
+              >
+                ${letter}) ${text}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      quizContainer.innerHTML = template;
+    }
+
+    function selectOption(questionId, option) {
+      // Disable all buttons to prevent multiple clicks
+      document.querySelectorAll(`.option-btn[data-question="${questionId}"]`)
+        .forEach(btn => btn.disabled = true);
+
+      // Remove previous answer for this question
+      userAnswers = userAnswers.filter(a => a.questionId !== questionId);
+
+      // Add selected answer
+      userAnswers.push({ questionId, selectedOption: option });
+
+      // Highlight selected option
+      document.querySelectorAll(`.option-btn[data-question="${questionId}"]`)
+        .forEach(btn => {
+          btn.classList.remove('bg-green-600', 'bg-red-600');
+          if (btn.dataset.option === option) {
+            btn.classList.add('bg-green-600');
+          }
+        });
+
+      // Check if answer is correct and update cash
+      const question = currentQuestions.find(q => q.id === questionId);
+      if (question) {
+        const correctOption = Object.keys(question.options).find(key => 
+          question.options[key] === question.correctAnswer
+        );
+        
+        let isCorrect = false;
+        if (correctOption === option) {
+          // Correct answer - add prize money
+          currentCash += prizeStructure[question.questionNumber - 1];
+          updatePrizeStructure(question.questionNumber, true);
+          isCorrect = true;
+          
+          // Show cash won message
+          showCashWonMessage(prizeStructure[question.questionNumber - 1]);
+          
+          // Show success animation
+          setTimeout(() => {
+            document.querySelector(`.option-btn[data-option="${option}"]`)
+              .classList.add('animate-pulse');
+          }, 500);
+        } else {
+          // Wrong answer - mark as incorrect
+          updatePrizeStructure(question.questionNumber, false);
+          
+          // Show correct answer
+          setTimeout(() => {
+            document.querySelector(`.option-btn[data-option="${correctOption}"]`)
+              .classList.add('bg-green-600');
+            document.querySelector(`.option-btn[data-option="${option}"]`)
+              .classList.add('bg-red-600');
+          }, 500);
+        }
+        
+        questionsAnswered++;
+        updateCashDisplay();
+        updateQuestionsAnswered();
+        
+        // Log current status
+        console.log(`Question ${question.questionNumber}: ${isCorrect ? 'Correct' : 'Wrong'}`);
+        console.log(`Current Cash: ₹${currentCash.toLocaleString()}`);
+        console.log(`Questions Answered: ${questionsAnswered}/10`);
+      }
+
+      // Go to next question after 2.5s
+      setTimeout(() => {
+        if (currentQuestionIndex < currentQuestions.length - 1) {
+          currentQuestionIndex++;
+          showQuestion(currentQuestionIndex);
+        } else {
+          // Quiz completed
+          setTimeout(() => {
+            submitQuiz();
+          }, 1000);
+        }
+      }, 2500);
+    }
+
+    function showCashWonMessage(amount) {
+      // Create floating cash message
+      const message = document.createElement('div');
+      message.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-yellow-500 text-black font-bold text-2xl px-8 py-4 rounded-lg shadow-2xl';
+      message.innerHTML = `🎉 You Won ₹${amount.toLocaleString()}! 🎉`;
+      message.style.animation = 'bounce 1s ease-in-out';
+      
+      document.body.appendChild(message);
+      
+      setTimeout(() => {
+        message.remove();
+      }, 2000);
+    }
+
+    function highlightCurrentPrize(questionNumber) {
+      document.querySelectorAll('.prize-item').forEach(item => {
+        item.classList.remove('bg-yellow-500', 'text-black', 'font-bold');
+        if (parseInt(item.dataset.question) === questionNumber) {
+          item.classList.add('bg-yellow-500', 'text-black', 'font-bold');
+        }
+      });
+    }
+
+    function updatePrizeStructure(questionNumber, isCorrect) {
+      const prizeItem = document.querySelector(`[data-question="${questionNumber}"]`);
+      if (prizeItem) {
+        prizeItem.classList.remove('bg-yellow-500', 'text-black');
+        if (isCorrect) {
+          prizeItem.classList.add('bg-green-600', 'text-white');
+          prizeItem.innerHTML += ' ✓';
+        } else {
+          prizeItem.classList.add('bg-red-600', 'text-white');
+          prizeItem.innerHTML += ' ✗';
+        }
+      }
+    }
+
+    function updateCashDisplay() {
+      document.getElementById('currentCash').textContent = currentCash.toLocaleString();
+    }
+
+    function updateQuestionsAnswered() {
+      document.getElementById('questionsAnswered').textContent = questionsAnswered;
+    }
+
+    function useLifeline(type, questionId) {
+      console.log(`Using lifeline: ${type} on question ${questionId}`);
+      // You can expand this logic as needed
+    }
+
+    function startTimer() {
+      let timeLeft = 600;
+      const timerElement = document.getElementById('timeLeft');
+
+      timer = setInterval(() => {
+        timeLeft--;
+        timerElement.textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          submitQuiz();
+        }
+      }, 1000);
+    }
+
+    async function submitQuiz() {
+      clearInterval(timer);
+
+      console.log('Submitting Quiz...');
+      console.log('Final Cash Amount:', currentCash);
+      console.log('User Answers:', userAnswers);
+
+      try {
+        const submitData = {
+          answers: userAnswers,
+          timeRemaining: parseInt(document.getElementById('timeLeft').textContent),
+          currentCash: currentCash
+        };
+
+        console.log('Submit Data:', submitData);
+
+        const response = await fetch('/api/quiz/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(submitData)
+        });
+
+        const result = await response.json();
+        console.log('Quiz Result from Server:', result);
+
+        if (result.status) {
+          // Show simple results and redirect
+          showSimpleResults(result);
+        } else {
+          alert("❌ Submission failed: " + (result.message || 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('Submit Quiz Error:', error);
+        alert('❌ Failed to submit quiz. Please try again.');
+      }
+    }
+
+    function showSimpleResults(result) {
+      // Hide submit button
+      document.getElementById('submitQuiz').classList.add('hidden');
+      
+      // Get values with fallbacks
+      const correctAnswers = result.correctAnswers || 0;
+      const totalQuestions = result.totalQuestions || 10;
+      const timeTaken = result.timeTaken || 0;
+      const cashWon = result.cashWon || currentCash || 0;
+      
+      console.log('Showing results:', { correctAnswers, totalQuestions, timeTaken, cashWon });
+      
+      // Show simple, clean results
+      const quizContainer = document.getElementById('quiz-container');
+      quizContainer.innerHTML = `
+        <div class="bg-white rounded-lg shadow-2xl p-8 text-center max-w-2xl mx-auto">
+          <div class="mb-8">
+            <h2 class="text-4xl font-bold text-green-600 mb-4">🎉 Quiz Results</h2>
+            <div class="w-20 h-1 bg-green-500 mx-auto mb-6"></div>
+          </div>
+          
+          <div class="space-y-6 mb-8">
+            <div class="bg-gray-50 rounded-lg p-6">
+              <h3 class="text-2xl font-bold text-gray-800 mb-4">Final Score</h3>
+              <div class="text-5xl font-extrabold text-blue-600 mb-2">${correctAnswers}/${totalQuestions}</div>
+              <div class="text-gray-600">Questions Answered Correctly</div>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-6">
+              <h3 class="text-2xl font-bold text-gray-800 mb-4">Time Taken</h3>
+              <div class="text-5xl font-extrabold text-purple-600 mb-2">${Math.floor(timeTaken / 60)}m ${timeTaken % 60}s</div>
+              <div class="text-gray-600">Total Time Used</div>
+            </div>
+            
+            <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-6 text-white">
+              <h3 class="text-2xl font-bold mb-4">💰 Cash Won</h3>
+              <div class="text-6xl font-extrabold mb-2">₹${cashWon.toLocaleString()}</div>
+              <div class="text-lg opacity-90">Congratulations!</div>
+            </div>
+          </div>
+          
+          <div class="bg-blue-50 rounded-lg p-6 mb-8">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Performance Summary</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div class="text-center">
+                <div class="text-2xl font-bold text-green-600">${correctAnswers}</div>
+                <div class="text-gray-600">Correct</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-red-600">${totalQuestions - correctAnswers}</div>
+                <div class="text-gray-600">Wrong</div>
+              </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-blue-600">${Math.round((correctAnswers / totalQuestions) * 100)}%</div>
+                <div class="text-gray-600">Accuracy</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-green-50 rounded-lg p-6 mb-8">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">🏆 Prize Breakdown</h3>
+            <div class="text-sm text-gray-700 space-y-2">
+              <p><strong>Questions Correct:</strong> ${correctAnswers} out of ${totalQuestions}</p>
+              <p><strong>Prize Structure:</strong> ₹2K, ₹5K, ₹8K, ₹10K, ₹15K, ₹18K, ₹25K, ₹30K, ₹40K, ₹50K</p>
+              <div class="mt-4 p-4 bg-green-100 rounded border-l-4 border-green-500">
+                <p class="font-bold text-green-800 text-lg">Total Prize Money: ₹${cashWon.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onclick="window.location.reload()" 
+              class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold text-lg transition-all"
+            >
+              🔄 Start New Quiz
+            </button>
+            <button 
+              onclick="window.location.href='/cashboard'" 
+              class="bg-yellow-600 hover:bg-yellow-700 text-white px-8 py-3 rounded-lg font-bold text-lg transition-all"
+            >
+              💰 View Cash Dashboard
+            </button>
+            <button 
+              onclick="window.location.href='/dashboard'" 
+              class="bg-gray-600 hover:bg-gray-700 text-white px-8 py-3 rounded-lg font-bold text-lg transition-all"
+            >
+              🏠 Dashboard
+            </button>
+          </div>
+        </div>
+      `;
+      
+      // Update header cash display
+      document.getElementById('currentCash').textContent = cashWon.toLocaleString();
+      
+      // Add celebration animation
+      setTimeout(() => {
+        const resultDiv = quizContainer.querySelector('div');
+        resultDiv.style.animation = 'bounce 1s ease-in-out';
+        
+        // Add confetti effect
+        createConfetti();
+      }, 500);
+    }
+    
+    function createConfetti() {
+      // Simple confetti effect
+      const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dda0dd'];
+      
+      for (let i = 0; i < 50; i++) {
+        setTimeout(() => {
+          const confetti = document.createElement('div');
+          confetti.style.position = 'fixed';
+          confetti.style.left = Math.random() * 100 + 'vw';
+          confetti.style.top = '-10px';
+          confetti.style.width = '10px';
+          confetti.style.height = '10px';
+          confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+          confetti.style.borderRadius = '50%';
+          confetti.style.zIndex = '9999';
+          confetti.style.pointerEvents = 'none';
+          confetti.style.animation = 'fall 3s linear forwards';
+          
+          document.body.appendChild(confetti);
+          
+          setTimeout(() => {
+            confetti.remove();
+          }, 3000);
+        }, i * 100);
+      }
+      
+      // Add CSS for falling animation
+      if (!document.querySelector('#confetti-style')) {
+        const style = document.createElement('style');
+        style.id = 'confetti-style';
+        style.textContent = `
+          @keyframes fall {
+            0% {
+              transform: translateY(-10px) rotate(0deg);
+              opacity: 1;
+            }
+            100% {
+              transform: translateY(100vh) rotate(360deg);
+              opacity: 0;
+            }
+          }
+          @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+              transform: translateY(0);
+            }
+            40% {
+              transform: translateY(-10px);
+            }
+            60% {
+              transform: translateY(-5px);
+            }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
+
+    // Initialize quiz
+    document.addEventListener('DOMContentLoaded', fetchQuiz);
+    document.getElementById('submitQuiz').addEventListener('click', submitQuiz);
+  </script>
+</body>
+</html>

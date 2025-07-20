@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Won Dashboard - KBC Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-yellow-400 mb-4">💰 Cash Won Dashboard</h1>
+            <p class="text-white text-lg">Track your earnings and see top performers</p>
+            
+            <!-- Navigation -->
+            <div class="flex justify-center gap-4 mt-6">
+                <a href="/quiz.html" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold transition-all">
+                    🎯 Take Quiz
+                </a>
+                <!-- <a href="/dashboard.html" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-bold transition-all">
+                    🏠 Dashboard
+                </a> -->
+                <button onclick="refreshData()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold transition-all">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- User Stats Summary -->
+        <div id="userStatsSection" class="mb-8">
+            <div class="bg-white/10 backdrop-blur-md rounded-lg p-6 text-center">
+                <h2 class="text-2xl font-bold text-yellow-400 mb-4">Your Performance</h2>
+                <div id="userStats" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <!-- User stats will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Cash Leaderboard -->
+            <div class="bg-white/10 backdrop-blur-md rounded-lg p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-yellow-400">🏆 Top Cash Winners</h2>
+                    <div id="leaderboardLoading" class="loading w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full hidden"></div>
+                </div>
+                
+                <div id="cashLeaderboard" class="space-y-3">
+                    <!-- Leaderboard will be loaded here -->
+                </div>
+                
+                <button onclick="loadMoreLeaderboard()" id="loadMoreBtn" class="w-full mt-4 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg font-bold transition-all">
+                    Load More
+                </button>
+            </div>
+
+            <!-- Quiz History -->
+            <div class="bg-white/10 backdrop-blur-md rounded-lg p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-green-400">📊 Your Quiz History</h2>
+                    <div id="historyLoading" class="loading w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full hidden"></div>
+                </div>
+                
+                <div id="quizHistory" class="space-y-3">
+                    <!-- History will be loaded here -->
+                </div>
+                
+                <div id="historyStats" class="mt-6 p-4 bg-white/5 rounded-lg">
+                    <!-- History stats will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Statistics -->
+        <div class="mt-8 bg-white/10 backdrop-blur-md rounded-lg p-6">
+            <h2 class="text-2xl font-bold text-blue-400 mb-6">📈 Detailed Analytics</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Performance Chart -->
+                <div class="bg-white/5 rounded-lg p-4">
+                    <h3 class="text-lg font-bold text-white mb-3">Performance Trend</h3>
+                    <div id="performanceChart" class="text-center text-gray-300">
+                        <!-- Chart will be rendered here -->
+                    </div>
+                </div>
+                
+                <!-- Cash Distribution -->
+                <div class="bg-white/5 rounded-lg p-4">
+                    <h3 class="text-lg font-bold text-white mb-3">Cash Distribution</h3>
+                    <div id="cashDistribution" class="space-y-2">
+                        <!-- Distribution will be shown here -->
+                    </div>
+                </div>
+                
+                <!-- Recent Activity -->
+                <div class="bg-white/5 rounded-lg p-4">
+                    <h3 class="text-lg font-bold text-white mb-3">Recent Activity</h3>
+                    <div id="recentActivity" class="space-y-2">
+                        <!-- Recent activity will be shown here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLeaderboardPage = 1;
+        const leaderboardLimit = 10;
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAllData();
+        });
+
+        async function loadAllData() {
+            await Promise.all([
+                loadUserStats(),
+                loadCashLeaderboard(),
+                loadQuizHistory(),
+                loadUserRank()
+            ]);
+        }
+
+        async function refreshData() {
+            // Show loading indicators
+            document.getElementById('leaderboardLoading').classList.remove('hidden');
+            document.getElementById('historyLoading').classList.remove('hidden');
+            
+            await loadAllData();
+            
+            // Hide loading indicators
+            document.getElementById('leaderboardLoading').classList.add('hidden');
+            document.getElementById('historyLoading').classList.add('hidden');
+            
+            // Show success message
+            showNotification('Data refreshed successfully!', 'success');
+        }
+
+        async function loadUserStats() {
+            try {
+                const response = await fetch('/api/user/rank');
+                const data = await response.json();
+                
+                if (data.status && data.userRank) {
+                    const stats = data.userRank;
+                    document.getElementById('userStats').innerHTML = `
+                        <div class="bg-yellow-500/20 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-yellow-400">₹${(stats.cash_won || 0).toLocaleString()}</div>
+                            <div class="text-sm text-white">Total Cash Won</div>
+                        </div>
+                        <div class="bg-blue-500/20 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-blue-400">#${stats.cash_rank || 'N/A'}</div>
+                            <div class="text-sm text-white">Cash Rank</div>
+                        </div>
+                        <div class="bg-green-500/20 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-green-400">${stats.score || 0}/10</div>
+                            <div class="text-sm text-white">Best Score</div>
+                        </div>
+                        <div class="bg-purple-500/20 rounded-lg p-4">
+                            <div class="text-2xl font-bold text-purple-400">${stats.cash_rank <= 10 ? '🏆' : stats.cash_rank <= 50 ? '🥉' : '📊'}</div>
+                            <div class="text-sm text-white">Achievement</div>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('userStats').innerHTML = `
+                        <div class="col-span-4 text-center text-gray-400">
+                            <p>No quiz data found. Take your first quiz to see stats!</p>
+                            <a href="/quiz" class="inline-block mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                Start Quiz
+                            </a>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading user stats:', error);
+                document.getElementById('userStats').innerHTML = `
+                    <div class="col-span-4 text-center text-red-400">
+                        <p>Error loading stats. Please try again.</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadCashLeaderboard(append = false) {
+            try {
+                document.getElementById('leaderboardLoading').classList.remove('hidden');
+                
+                const response = await fetch('/api/leaderboard/cash');
+                const data = await response.json();
+                
+                if (data.status && data.leaderboard) {
+                    const leaderboard = data.leaderboard.slice(0, currentLeaderboardPage * leaderboardLimit);
+                    
+                    const leaderboardHTML = leaderboard.map((entry, index) => {
+                        const rank = index + 1;
+                        const medalEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+                        const bgColor = rank <= 3 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20' : 'bg-white/5';
+                        
+                        return `
+                            <div class="${bgColor} rounded-lg p-4 flex justify-between items-center fade-in">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl">${medalEmoji}</span>
+                                    <div>
+                                        <div class="font-bold text-white">${entry.username}</div>
+                                        <div class="text-sm text-gray-300">Score: ${entry.score}/10</div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xl font-bold text-yellow-400">₹${entry.cash_won.toLocaleString()}</div>
+                                    <div class="text-xs text-gray-400">${formatDate(entry.created_at)}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    document.getElementById('cashLeaderboard').innerHTML = leaderboardHTML;
+                    
+                    // Hide load more button if we've shown all entries
+                    if (leaderboard.length < currentLeaderboardPage * leaderboardLimit) {
+                        document.getElementById('loadMoreBtn').style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('cashLeaderboard').innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <p>No leaderboard data available</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+                document.getElementById('cashLeaderboard').innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        <p>Error loading leaderboard</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('leaderboardLoading').classList.add('hidden');
+            }
+        }
+
+        async function loadQuizHistory() {
+            try {
+                document.getElementById('historyLoading').classList.remove('hidden');
+                
+                const response = await fetch('/api/user/quiz-history');
+                const data = await response.json();
+                
+                if (data.status && data.history) {
+                    const historyHTML = data.history.map((quiz, index) => {
+                        const accuracy = Math.round((quiz.score / 10) * 100);
+                        const timeFormatted = formatTime(quiz.time_taken);
+                        
+                        return `
+                            <div class="bg-white/5 rounded-lg p-4 fade-in">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold text-white">Quiz #${data.history.length - index}</div>
+                                        <div class="text-sm text-gray-300">
+                                            Score: ${quiz.score}/10 (${accuracy}%) • Time: ${timeFormatted}
+                                        </div>
+                                        <div class="text-xs text-gray-400">${formatDate(quiz.created_at)}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-lg font-bold text-yellow-400">₹${quiz.cash_won.toLocaleString()}</div>
+                                        <div class="text-xs ${accuracy >= 70 ? 'text-green-400' : accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'}">
+                                            ${accuracy >= 70 ? '🎉 Great!' : accuracy >= 50 ? '👍 Good' : '📚 Keep trying'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    document.getElementById('quizHistory').innerHTML = historyHTML || `
+                        <div class="text-center text-gray-400 py-8">
+                            <p>No quiz history found</p>
+                            <a href="/quiz" class="inline-block mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                Take Your First Quiz
+                            </a>
+                        </div>
+                    `;
+                    
+                    // Show history stats
+                    if (data.history.length > 0) {
+                        const avgScore = (data.history.reduce((sum, quiz) => sum + quiz.score, 0) / data.history.length).toFixed(1);
+                                                const avgCash = Math.round(data.totalCashWon / data.history.length);
+                        const bestScore = Math.max(...data.history.map(quiz => quiz.score));
+                        const bestCash = Math.max(...data.history.map(quiz => quiz.cash_won));
+                        
+                        document.getElementById('historyStats').innerHTML = `
+                            <h3 class="font-bold text-white mb-3">📊 Your Statistics</h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                <div>
+                                    <div class="text-lg font-bold text-blue-400">${data.history.length}</div>
+                                    <div class="text-xs text-gray-300">Total Quizzes</div>
+                                </div>
+                                <div>
+                                    <div class="text-lg font-bold text-green-400">${avgScore}/10</div>
+                                    <div class="text-xs text-gray-300">Avg Score</div>
+                                </div>
+                                <div>
+                                    <div class="text-lg font-bold text-yellow-400">₹${data.totalCashWon.toLocaleString()}</div>
+                                    <div class="text-xs text-gray-300">Total Earned</div>
+                                </div>
+                                <div>
+                                    <div class="text-lg font-bold text-purple-400">₹${bestCash.toLocaleString()}</div>
+                                    <div class="text-xs text-gray-300">Best Single Quiz</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    document.getElementById('quizHistory').innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <p>No quiz history found</p>
+                            <a href="/quiz" class="inline-block mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                Take Your First Quiz
+                            </a>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading quiz history:', error);
+                document.getElementById('quizHistory').innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        <p>Error loading quiz history</p>
+                    </div>
+                `;
+            } finally {
+                document.getElementById('historyLoading').classList.add('hidden');
+            }
+        }
+
+        async function loadUserRank() {
+            try {
+                const response = await fetch('/api/user/rank');
+                const data = await response.json();
+                
+                if (data.status && data.userRank) {
+                    // Load performance chart
+                    loadPerformanceChart();
+                    // Load cash distribution
+                    loadCashDistribution();
+                    // Load recent activity
+                    loadRecentActivity();
+                }
+            } catch (error) {
+                console.error('Error loading user rank:', error);
+            }
+        }
+
+        function loadPerformanceChart() {
+            // Simple text-based chart for now
+            document.getElementById('performanceChart').innerHTML = `
+                <div class="space-y-2">
+                    <div class="text-sm text-gray-300">Performance over time</div>
+                    <div class="h-20 bg-gradient-to-r from-blue-500/20 to-green-500/20 rounded flex items-end justify-center">
+                        <span class="text-xs text-white">📈 Trending Up</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadCashDistribution() {
+            const prizeStructure = [2000, 5000, 8000, 10000, 15000, 18000, 25000, 30000, 40000, 50000];
+            
+            document.getElementById('cashDistribution').innerHTML = `
+                <div class="text-sm text-gray-300 mb-2">Prize Structure</div>
+                ${prizeStructure.map((prize, index) => `
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-gray-400">Q${index + 1}</span>
+                        <span class="text-yellow-400">₹${prize.toLocaleString()}</span>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        async function loadRecentActivity() {
+            try {
+                const response = await fetch('/api/leaderboard/cash');
+                const data = await response.json();
+                
+                if (data.status && data.leaderboard) {
+                    const recent = data.leaderboard.slice(0, 5);
+                    
+                    document.getElementById('recentActivity').innerHTML = recent.map(entry => `
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-gray-300">${entry.username}</span>
+                            <span class="text-yellow-400">₹${entry.cash_won.toLocaleString()}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading recent activity:', error);
+                document.getElementById('recentActivity').innerHTML = `
+                    <div class="text-xs text-red-400">Error loading activity</div>
+                `;
+            }
+        }
+
+        function loadMoreLeaderboard() {
+            currentLeaderboardPage++;
+            loadCashLeaderboard();
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}m ${remainingSeconds}s`;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg text-white font-bold ${
+                type === 'success' ? 'bg-green-600' : 
+                type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadCashLeaderboard();
+        }, 30000);
+    </script>
+</body>
+</html>
+
