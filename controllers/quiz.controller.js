@@ -22,19 +22,125 @@ function generateMCQOptions(content, correctAnswer) {
 
 function generateQuestionText(sentence, keyTerm) {
     const questionTypes = [
-        `What is ${keyTerm}?`,
-        `What does ${keyTerm} mean?`,
-        `How is ${keyTerm} defined?`,
-        `Which statement is correct about ${keyTerm}?`,
-        `According to the text, ${keyTerm} refers to:`,
-        `Which of the following describes ${keyTerm}?`,
-        `What can be said about ${keyTerm}?`,
-        `How would you describe ${keyTerm}?`,
-        `Identify what ${keyTerm} is:`,
-        `The concept of ${keyTerm} involves:`
-    ];
+    // About Type Questions
+    `Tell me about ${keyTerm}?`,
+    `What do you know about ${keyTerm}?`,
+    `Could you elaborate about ${keyTerm}?`,
+    `Share your knowledge about ${keyTerm}?`,
+    `What information exists about ${keyTerm}?`,
+
+    // Statement Type Questions
+    `Which statement best represents ${keyTerm}?`,
+    `Select the correct statement regarding ${keyTerm}`,
+    `Choose the most accurate statement about ${keyTerm}`,
+    `Identify the true statement concerning ${keyTerm}`,
+    `Which of these statements defines ${keyTerm} correctly?`,
+
+    // Definition Based
+    `Define ${keyTerm} in the most accurate way`,
+    `What is the precise definition of ${keyTerm}?`,
+    `How would experts define ${keyTerm}?`,
+    `Choose the best definition for ${keyTerm}`,
+    `What definition best suits ${keyTerm}?`,
+
+    // Characteristic Based
+    `What characterizes ${keyTerm}?`,
+    `Which feature best describes ${keyTerm}?`,
+    `What qualities are associated with ${keyTerm}?`,
+    `What attributes define ${keyTerm}?`,
+    `Which characteristics are unique to ${keyTerm}?`,
+
+    // Function Based
+    `How does ${keyTerm} work?`,
+    `What is the working principle of ${keyTerm}?`,
+    `How would you explain the functioning of ${keyTerm}?`,
+    `What mechanism does ${keyTerm} use?`,
+    `How is ${keyTerm} operated?`,
+
+    // Purpose Based
+    `What is the main purpose of ${keyTerm}?`,
+    `Why do we need ${keyTerm}?`,
+    `What goals does ${keyTerm} achieve?`,
+    `What is the intended use of ${keyTerm}?`,
+    `What purpose does ${keyTerm} serve?`,
+
+    // Application Based
+    `Where is ${keyTerm} applied?`,
+    `How is ${keyTerm} used in practice?`,
+    `What are the real-world applications of ${keyTerm}?`,
+    `In which scenarios is ${keyTerm} useful?`,
+    `How do we implement ${keyTerm}?`,
+
+    // Relationship Based
+    `How does ${keyTerm} relate to the system?`,
+    `What is the connection between ${keyTerm} and other components?`,
+    `How does ${keyTerm} interact with other elements?`,
+    `What role does ${keyTerm} play in the bigger picture?`,
+    `How is ${keyTerm} integrated with other parts?`,
+
+    // Impact Based
+    `What impact does ${keyTerm} have?`,
+    `How does ${keyTerm} affect the outcome?`,
+    `What changes does ${keyTerm} bring?`,
+    `What are the effects of ${keyTerm}?`,
+    `How influential is ${keyTerm}?`,
+
+    // Advantage Based
+    `What advantages does ${keyTerm} offer?`,
+    `How beneficial is ${keyTerm}?`,
+    `What makes ${keyTerm} valuable?`,
+    `Why is ${keyTerm} considered useful?`,
+    `What are the positive aspects of ${keyTerm}?`,
+
+    // Process Based
+    `What process does ${keyTerm} follow?`,
+    `How is ${keyTerm} carried out?`,
+    `What steps are involved in ${keyTerm}?`,
+    `How does ${keyTerm} proceed?`,
+    `What is the sequence in ${keyTerm}?`,
+
+    // Comparison Based
+    `How does ${keyTerm} compare to alternatives?`,
+    `What distinguishes ${keyTerm} from others?`,
+    `How is ${keyTerm} different?`,
+    `What makes ${keyTerm} stand out?`,
+    `How unique is ${keyTerm}?`,
+
+    // Analysis Based
+    `How would you analyze ${keyTerm}?`,
+    `What are the key components of ${keyTerm}?`,
+    `How can we break down ${keyTerm}?`,
+    `What constitutes ${keyTerm}?`,
+    `What elements make up ${keyTerm}?`
+];
+
 
     return questionTypes[Math.floor(Math.random() * questionTypes.length)];
+}
+
+// Function to distribute correct answers evenly across options
+function getCorrectAnswerDistribution(totalQuestions) {
+    const options = ['A', 'B', 'C', 'D'];
+    const distribution = [];
+    
+    // Calculate how many questions each option should have
+    const questionsPerOption = Math.floor(totalQuestions / 4);
+    const remainder = totalQuestions % 4;
+    
+    // Add base questions for each option
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < questionsPerOption; j++) {
+            distribution.push(options[i]);
+        }
+    }
+    
+    // Add remainder questions to first few options
+    for (let i = 0; i < remainder; i++) {
+        distribution.push(options[i]);
+    }
+    
+    // Shuffle the distribution to randomize order
+    return distribution.sort(() => Math.random() - 0.5);
 }
 
 async function generateQuestionsFromContent(content) {
@@ -51,12 +157,44 @@ async function generateQuestionsFromContent(content) {
         ))
         .map(sentence => sentence.trim());
 
-    return keyPoints.slice(0, 10).map((point, index) => {
+    const selectedPoints = keyPoints.slice(0, 10);
+    
+    // Get the distribution of correct answers
+    const correctAnswerDistribution = getCorrectAnswerDistribution(selectedPoints.length);
+    
+    console.log('Correct Answer Distribution:', correctAnswerDistribution);
+
+    return selectedPoints.map((point, index) => {
         const words = point.split(' ').filter(word => word.length > 4);
         const keyTerm = words[Math.floor(Math.random() * words.length)];
 
-        const options = generateMCQOptions(content, point);
+        // Generate 4 options including the correct answer
+        const allOptions = generateMCQOptions(content, point);
+        const correctAnswerText = point.replace(/\r\n/g, ' ').trim();
+        
+        // Get the designated correct option for this question
+        const designatedCorrectOption = correctAnswerDistribution[index];
+        
+        // Create options object with correct answer in designated position
+        const options = {};
+        const optionLetters = ['A', 'B', 'C', 'D'];
+        
+        // Place correct answer in designated position
+        options[designatedCorrectOption] = correctAnswerText;
+        
+        // Fill remaining positions with wrong options
+        let wrongOptionIndex = 0;
+        for (const letter of optionLetters) {
+            if (letter !== designatedCorrectOption) {
+                options[letter] = allOptions.find(opt => opt !== correctAnswerText && 
+                    !Object.values(options).includes(opt)) || allOptions[wrongOptionIndex + 1];
+                wrongOptionIndex++;
+            }
+        }
+
         const questionText = generateQuestionText(point, keyTerm);
+
+        console.log(`Question ${index + 1}: Correct Answer is Option ${designatedCorrectOption}`);
 
         return {
             id: index + 1,
@@ -69,11 +207,12 @@ async function generateQuestionsFromContent(content) {
                 expertAdvice: true
             },
             question: questionText,
-            optionA: options[0],
-            optionB: options[1],
-            optionC: options[2],
-            optionD: options[3],
-            correctAnswer: options[0]
+            optionA: options.A,
+            optionB: options.B,
+            optionC: options.C,
+            optionD: options.D,
+            correctAnswer: correctAnswerText, // Keep the text for backend comparison
+            correctOption: designatedCorrectOption // Add the correct option letter
         };
     });
 }
@@ -108,18 +247,14 @@ function calculateCumulativePrize(userAnswers, questions) {
         if (question) {
             console.log(`Question ${question.questionNumber} found`);
             console.log('Question options:', question.options);
-            console.log('Correct answer:', question.correctAnswer);
-            
-            // Find the correct answer option (A, B, C, or D)
-            const correctOption = Object.keys(question.options).find(key => 
-                question.options[key] === question.correctAnswer
-            );
+            console.log('Correct answer text:', question.correctAnswer);
+            console.log('Correct option letter:', question.correctOption);
             
             console.log(`Selected option: ${answer.selectedOption}`);
-            console.log(`Correct option: ${correctOption}`);
+            console.log(`Correct option: ${question.correctOption}`);
             
-            // If user's selected option matches correct option, add prize money
-            if (correctOption === answer.selectedOption) {
+            // Compare selected option with correct option letter
+            if (question.correctOption === answer.selectedOption) {
                 const prizeAmount = prizes[question.questionNumber - 1];
                 totalCash += prizeAmount;
                 console.log(`✅ CORRECT! Added ₹${prizeAmount.toLocaleString()}`);
@@ -144,7 +279,7 @@ function calculateScore(userAnswers, questions) {
     
     console.log('=== CALCULATING SCORE ===');
     
-        if (!Array.isArray(userAnswers) || userAnswers.length === 0) {
+    if (!Array.isArray(userAnswers) || userAnswers.length === 0) {
         console.log('No valid answers provided for score calculation');
         return 0;
     }
@@ -153,15 +288,10 @@ function calculateScore(userAnswers, questions) {
         console.log(`\n--- Scoring Answer ${index + 1} ---`);
         const question = questions.find(q => q.id === answer.questionId);
         if (question) {
-            // Find the correct answer option (A, B, C, or D)
-            const correctOption = Object.keys(question.options).find(key => 
-                question.options[key] === question.correctAnswer
-            );
+            console.log(`Question ${question.questionNumber}: Selected ${answer.selectedOption}, Correct ${question.correctOption}`);
             
-            console.log(`Question ${question.questionNumber}: Selected ${answer.selectedOption}, Correct ${correctOption}`);
-            
-            // If user's selected option matches correct option, increment score
-            if (correctOption === answer.selectedOption) {
+            // Compare selected option with correct option letter
+            if (question.correctOption === answer.selectedOption) {
                 score += 1;
                 console.log(`✅ Correct! Score: ${score}`);
             } else {
@@ -263,7 +393,8 @@ const quizController = {
                     C: q.optionC,
                     D: q.optionD
                 },
-                correctAnswer: q.correctAnswer
+                correctAnswer: q.correctAnswer,
+                correctOption: q.correctOption // Include correct option letter
             }));
 
             const quiz = {
@@ -281,6 +412,14 @@ const quizController = {
             );
 
             console.log('✅ Quiz generated successfully with', formattedQuestions.length, 'questions');
+            
+            // Log the distribution of correct answers
+            const distribution = formattedQuestions.reduce((acc, q) => {
+                acc[q.correctOption] = (acc[q.correctOption] || 0) + 1;
+                return acc;
+            }, {});
+            console.log('📊 Correct Answer Distribution:', distribution);
+            
             res.json(quiz);
         } catch (error) {
             console.error('Generate Quiz Error:', error);
@@ -342,7 +481,7 @@ const quizController = {
 
             console.log('\n📊 CALCULATION RESULTS:');
             console.log('- Correct answers:', correctAnswers);
-            console.log('- Total questions:', questions.length);
+                       console.log('- Total questions:', questions.length);
             console.log('- Time taken:', timeTaken, 'seconds');
             console.log('- Cash won (calculated):', totalCashWon);
             console.log('- Cash won (frontend):', currentCash);
@@ -580,4 +719,3 @@ const quizController = {
 
 
 module.exports = quizController;
-

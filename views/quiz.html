@@ -85,6 +85,14 @@
 
         if (data.status && Array.isArray(data.questions) && data.questions.length > 0) {
           currentQuestions = data.questions;
+          
+          // Log the correct answer distribution
+          const distribution = currentQuestions.reduce((acc, q) => {
+            acc[q.correctOption] = (acc[q.correctOption] || 0) + 1;
+            return acc;
+          }, {});
+          console.log('📊 Frontend - Correct Answer Distribution:', distribution);
+          
           startQuiz();
         } else {
           alert("❌ No quiz questions available. Please upload a valid PDF.");
@@ -114,12 +122,15 @@
       // Highlight current question in prize structure
       highlightCurrentPrize(question.questionNumber);
 
+      console.log(`📝 Question ${question.questionNumber}: Correct answer is Option ${question.correctOption}`);
+
       const template = `
         <div class="bg-white/10 backdrop-blur-md rounded-lg p-6 mb-6">
           <div class="mb-6">
             <h2 class="text-2xl font-bold text-yellow-400 mb-2">Question ${question.questionNumber}</h2>
             <p class="text-xl text-white mb-2">${question.question}</p>
-            <p class="text-yellow-300 font-bold">Prize for this question: ₹${question.prize.toLocaleString()}</p>
+                      <p class="text-yellow-300 font-bold">Prize for this question: ₹${question.prize.toLocaleString()}</p>
+            <p class="text-green-300 text-sm mt-1">Correct Answer: Option ${question.correctOption} (for testing)</p>
           </div>
 
           <!-- Lifelines -->
@@ -177,9 +188,8 @@
       // Check if answer is correct and update cash
       const question = currentQuestions.find(q => q.id === questionId);
       if (question) {
-        const correctOption = Object.keys(question.options).find(key => 
-          question.options[key] === question.correctAnswer
-        );
+        // Use the correctOption field from the backend
+        const correctOption = question.correctOption;
         
         let isCorrect = false;
         if (correctOption === option) {
@@ -214,7 +224,7 @@
         updateQuestionsAnswered();
         
         // Log current status
-        console.log(`Question ${question.questionNumber}: ${isCorrect ? 'Correct' : 'Wrong'}`);
+        console.log(`Question ${question.questionNumber}: Selected ${option}, Correct ${correctOption} - ${isCorrect ? 'Correct' : 'Wrong'}`);
         console.log(`Current Cash: ₹${currentCash.toLocaleString()}`);
         console.log(`Questions Answered: ${questionsAnswered}/10`);
       }
@@ -349,16 +359,31 @@
       
       console.log('Showing results:', { correctAnswers, totalQuestions, timeTaken, cashWon });
       
+      // Show detailed answer breakdown
+      const answerBreakdown = currentQuestions.map((question, index) => {
+        const userAnswer = userAnswers.find(a => a.questionId === question.id);
+        const isCorrect = userAnswer && userAnswer.selectedOption === question.correctOption;
+        
+        return {
+          questionNumber: question.questionNumber,
+          question: question.question.substring(0, 50) + '...',
+          userAnswer: userAnswer ? userAnswer.selectedOption : 'Not Answered',
+          correctAnswer: question.correctOption,
+          isCorrect: isCorrect,
+          prize: isCorrect ? prizeStructure[question.questionNumber - 1] : 0
+        };
+      });
+      
       // Show simple, clean results
       const quizContainer = document.getElementById('quiz-container');
       quizContainer.innerHTML = `
-        <div class="bg-white rounded-lg shadow-2xl p-8 text-center max-w-2xl mx-auto">
+        <div class="bg-white rounded-lg shadow-2xl p-8 text-center max-w-4xl mx-auto">
           <div class="mb-8">
             <h2 class="text-4xl font-bold text-green-600 mb-4">🎉 Quiz Results</h2>
             <div class="w-20 h-1 bg-green-500 mx-auto mb-6"></div>
           </div>
           
-          <div class="space-y-6 mb-8">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="bg-gray-50 rounded-lg p-6">
               <h3 class="text-2xl font-bold text-gray-800 mb-4">Final Score</h3>
               <div class="text-5xl font-extrabold text-blue-600 mb-2">${correctAnswers}/${totalQuestions}</div>
@@ -373,14 +398,14 @@
             
             <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-6 text-white">
               <h3 class="text-2xl font-bold mb-4">💰 Cash Won</h3>
-              <div class="text-6xl font-extrabold mb-2">₹${cashWon.toLocaleString()}</div>
+              <div class="text-5xl font-extrabold mb-2">₹${cashWon.toLocaleString()}</div>
               <div class="text-lg opacity-90">Congratulations!</div>
             </div>
           </div>
           
           <div class="bg-blue-50 rounded-lg p-6 mb-8">
             <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Performance Summary</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
               <div class="text-center">
                 <div class="text-2xl font-bold text-green-600">${correctAnswers}</div>
                 <div class="text-gray-600">Correct</div>
@@ -393,6 +418,40 @@
                 <div class="text-2xl font-bold text-blue-600">${Math.round((correctAnswers / totalQuestions) * 100)}%</div>
                 <div class="text-gray-600">Accuracy</div>
               </div>
+              <div class="text-center">
+                <div class="text-2xl font-bold text-purple-600">₹${Math.round(cashWon / correctAnswers || 0).toLocaleString()}</div>
+                <div class="text-gray-600">Avg per Correct</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Answer Breakdown -->
+          <div class="bg-gray-50 rounded-lg p-6 mb-8">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📝 Answer Breakdown</h3>
+            <div class="max-h-64 overflow-y-auto">
+              <div class="grid gap-2 text-sm">
+                ${answerBreakdown.map(item => `
+                  <div class="flex justify-between items-center p-3 rounded ${item.isCorrect ? 'bg-green-100' : 'bg-red-100'}">
+                    <div class="flex-1 text-left">
+                      <span class="font-bold">Q${item.questionNumber}:</span> ${item.question}
+                    </div>
+                    <div class="flex gap-4 text-center">
+                      <div>
+                        <div class="text-xs text-gray-600">Your Answer</div>
+                        <div class="font-bold ${item.isCorrect ? 'text-green-600' : 'text-red-600'}">${item.userAnswer}</div>
+                      </div>
+                      <div>
+                        <div class="text-xs text-gray-600">Correct</div>
+                        <div class="font-bold text-green-600">${item.correctAnswer}</div>
+                      </div>
+                      <div>
+                        <div class="text-xs text-gray-600">Prize</div>
+                        <div class="font-bold ${item.isCorrect ? 'text-green-600' : 'text-gray-400'}">₹${item.prize.toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
             </div>
           </div>
           
@@ -400,10 +459,29 @@
             <h3 class="text-xl font-bold text-gray-800 mb-4">🏆 Prize Breakdown</h3>
             <div class="text-sm text-gray-700 space-y-2">
               <p><strong>Questions Correct:</strong> ${correctAnswers} out of ${totalQuestions}</p>
-              <p><strong>Prize Structure:</strong> ₹2K, ₹5K, ₹8K, ₹10K, ₹15K, ₹18K, ₹25K, ₹30K, ₹40K, ₹50K</p>
+                            <p><strong>Prize Structure:</strong> ₹2K, ₹5K, ₹8K, ₹10K, ₹15K, ₹18K, ₹25K, ₹30K, ₹40K, ₹50K</p>
               <div class="mt-4 p-4 bg-green-100 rounded border-l-4 border-green-500">
                 <p class="font-bold text-green-800 text-lg">Total Prize Money: ₹${cashWon.toLocaleString()}</p>
               </div>
+            </div>
+          </div>
+          
+          <!-- Correct Answer Distribution Display -->
+          <div class="bg-purple-50 rounded-lg p-6 mb-8">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Correct Answer Distribution</h3>
+            <div class="grid grid-cols-4 gap-4 text-center">
+              ${['A', 'B', 'C', 'D'].map(option => {
+                const count = currentQuestions.filter(q => q.correctOption === option).length;
+                return `
+                  <div class="bg-white rounded-lg p-4 shadow">
+                    <div class="text-2xl font-bold text-purple-600">${count}</div>
+                    <div class="text-gray-600">Option ${option}</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <div class="mt-4 text-sm text-gray-600">
+              This shows how the correct answers were distributed across all options
             </div>
           </div>
           
@@ -506,3 +584,5 @@
   </script>
 </body>
 </html>
+
+
